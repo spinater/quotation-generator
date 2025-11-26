@@ -37,3 +37,39 @@ build
 # Testing
 coverage
 *.test.js.snap
+
+# Next.js
+.next/
+out/
+
+# Production
+/build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env files
+.env*.local
+
+# Vercel
+.vercel
+
+# Typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+prisma/migrations/*_backup/
+
+# PDF generation temp files
+*.pdf.tmp
+
+# OS files
+Thumbs.db
