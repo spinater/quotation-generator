@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@layer base {
+    * {
+        pointer-events: auto !important;
+    }
+
+    body {
+        font-family:
+            -apple-system, BlinkMacSystemFont, "Segoe UI", "Sarabun",
+            "Noto Sans Thai", sans-serif;
+    }
+
+    a,
+    button,
+    [role="button"] {
+        cursor: pointer !important;
+    }
+}
+
+@layer utilities {
+    .font-thai {
+        font-family: "Sarabun", "Noto Sans Thai", sans-serif;
+    }
+}

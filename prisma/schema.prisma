@@ -1,0 +1,395 @@
+// Prisma Schema for Thai Quotation & Receipt Generator
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Model
+// Stores user accounts with role-based access control (RBAC)
+model User {
+  id        String   @id @default(uuid())
+
+  // Authentication
+  email     String   @unique
+  password  String   // Hashed with bcrypt
+
+  // Profile
+  name      String
+  role      UserRole @default(USER)
+
+  // Account Status
+  isActive  Boolean  @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLogin DateTime?
+
+  // Relations - Track who created/modified documents
+  createdQuotations Quotation[] @relation("QuotationCreator")
+  createdReceipts   Receipt[]   @relation("ReceiptCreator")
+  createdInvoices   Invoice[]   @relation("InvoiceCreator")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// User Role Enum
+// ADMIN: Full access, can create users, manage all documents
+// USER: Limited access, can only manage own documents
+enum UserRole {
+  ADMIN
+  USER
+}
+
+// Company Model
+// Stores company information for generating quotations and receipts
+model Company {
+  id        String   @id @default(uuid())
+
+  // Company Details
+  name      String   // Thai company name
+  nameEn    String?  // English company name (optional)
+  taxId     String   @unique // Tax identification number
+  address   String   @db.Text // Full address with postal code
+  phone     String
+  email     String?
+
+  // Bank Details (optional)
+  bankName           String?
+  bankAccountNumber  String?
+  bankAccountName    String?
+
+  // Logo
+  logo      String?  @db.Text // URL or base64 encoded image
+
+  // Default Company Flag
+  isDefault Boolean  @default(false)
+
+  // Company Type Flags
+  isIssuer   Boolean  @default(true)  // Can issue invoices/quotations/receipts
+  isCustomer Boolean  @default(false) // Can be selected as customer
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  quotations Quotation[] @relation("CompanyQuotations")
+  receipts   Receipt[]   @relation("CompanyReceipts")
+  invoices   Invoice[]   @relation("CompanyInvoices")
+
+  @@index([isDefault])
+  @@index([taxId])
+  @@map("companies")
+}
+
+// Quotation Model
+// Stores quotation documents (ใบเสนอราคา)
+model Quotation {
+  id              String   @id @default(uuid())
+  quotationNumber String   @unique // Auto-generated: QT-YYYY-NNNN
+
+  // Company Reference
+  companyId       String
+  company         Company  @relation("CompanyQuotations", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Creator Reference (optional - for tracking who created this)
+  createdById     String?
+  createdBy       User?    @relation("QuotationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Customer Information
+  customerName    String
+  customerAddress String   @db.Text
+  customerTaxId   String?  // Optional
+  customerPhone   String?  // Optional
+
+  // Dates
+  issueDate       DateTime @default(now())
+  validUntil      DateTime
+
+  // Financial Calculations
+  subtotal        Float    @default(0) // Sum of all items
+  vatAmount       Float    @default(0) // 7% VAT (if applicable)
+  total           Float    @default(0) // Subtotal + VAT
+  hasVat          Boolean  @default(true) // VAT toggle
+
+  // Additional Information
+  notes           String?  @db.Text
+  language        String   @default("th") // 'th' or 'en'
+
+  // Signature Information (optional)
+  signatureUrl    String?  @db.Text
+  signatureName   String?
+  signatureTitle  String?
+
+  // Status (optional, for future use)
+  status          String   @default("draft") // draft, sent, accepted, rejected, expired
+
+  // Soft Delete (optional)
+  deletedAt       DateTime?
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  items           QuotationItem[]
+
+  @@index([quotationNumber])
+  @@index([companyId])
+  @@index([createdById])
+  @@index([customerName])
+  @@index([issueDate])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("quotations")
+}
+
+// Quotation Item Model
+// Stores individual line items in quotations
+// Supports hierarchical structure (main items and sub-items)
+model QuotationItem {
+  id            String    @id @default(uuid())
+
+  // Quotation Reference
+  quotationId   String
+  quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  // Item Details
+  description   String    @db.Text // Multi-line supported
+  quantity      Float     @default(1)
+  unit          String    // e.g., "ชิ้น", "เครื่อง", "บาท", "piece", "unit"
+  pricePerUnit  Float     @default(0)
+  amount        Float     @default(0) // quantity × pricePerUnit
+
+  // Ordering and Hierarchy
+  order         Int       @default(0) // For sorting items
+  parentItemId  String?   // For sub-items (references another QuotationItem)
+
+  // Self-referential relation for sub-items
+  parent        QuotationItem?  @relation("QuotationItemHierarchy", fields: [parentItemId], references: [id], onDelete: Cascade)
+  subItems      QuotationItem[] @relation("QuotationItemHierarchy")
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([quotationId])
+  @@index([parentItemId])
+  @@index([order])
+  @@map("quotation_items")
+}
+
+// Receipt Model
+// Stores receipt documents (ใบเสร็จรับเงิน)
+model Receipt {
+  id            String   @id @default(uuid())
+  receiptNumber String   @unique // Auto-generated: RC-YYYY-NNNN
+
+  // Company Reference
+  companyId     String
+  company       Company  @relation("CompanyReceipts", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Creator Reference (optional - for tracking who created this)
+  createdById   String?
+  createdBy     User?    @relation("ReceiptCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Customer Information
+  customerName    String
+  customerAddress String   @db.Text
+  customerTaxId   String?  // Optional
+  customerPhone   String?  // Optional
+
+  // Date
+  issueDate       DateTime @default(now())
+
+  // Financial Calculations
+  subtotal        Float    @default(0) // Sum of all items
+  vatAmount       Float    @default(0) // 7% VAT (if applicable)
+  total           Float    @default(0) // Subtotal + VAT
+  hasVat          Boolean  @default(true) // VAT toggle
+
+  // Payment Information
+  paymentMethod   String?  // e.g., "cash", "transfer", "cheque"
+  paymentDate     DateTime?
+
+  // Additional Information
+  notes           String?  @db.Text
+  language        String   @default("th") // 'th' or 'en'
+
+  // Signature Information (optional)
+  signatureUrl    String?  @db.Text
+  signatureName   String?
+  signatureTitle  String?
+
+  // Reference to Quotation (optional)
+  quotationId     String?
+
+  // Soft Delete (optional)
+  deletedAt       DateTime?
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  items           ReceiptItem[]
+
+  @@index([receiptNumber])
+  @@index([companyId])
+  @@index([createdById])
+  @@index([customerName])
+  @@index([issueDate])
+  @@index([deletedAt])
+  @@map("receipts")
+}
+
+// Receipt Item Model
+// Stores individual line items in receipts
+// Supports hierarchical structure (main items and sub-items)
+model ReceiptItem {
+  id            String  @id @default(uuid())
+
+  // Receipt Reference
+  receiptId     String
+  receipt       Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  // Item Details
+  description   String  @db.Text // Multi-line supported
+  quantity      Float   @default(1)
+  unit          String  // e.g., "ชิ้น", "เครื่อง", "บาท", "piece", "unit"
+  pricePerUnit  Float   @default(0)
+  amount        Float   @default(0) // quantity × pricePerUnit
+
+  // Ordering and Hierarchy
+  order         Int     @default(0) // For sorting items
+  parentItemId  String? // For sub-items (references another ReceiptItem)
+
+  // Self-referential relation for sub-items
+  parent        ReceiptItem?  @relation("ReceiptItemHierarchy", fields: [parentItemId], references: [id], onDelete: Cascade)
+  subItems      ReceiptItem[] @relation("ReceiptItemHierarchy")
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([receiptId])
+  @@index([parentItemId])
+  @@index([order])
+  @@map("receipt_items")
+}
+
+// Invoice Model
+// Stores invoice/billing documents (ใบแจ้งหนี้/ใบวางบิล)
+// Supports withholding tax (หัก ณ ที่จ่าย)
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique // Auto-generated: INV-YYYY-NNNN
+
+  // Company Reference
+  companyId     String
+  company       Company  @relation("CompanyInvoices", fields: [companyId], references: [id], onDelete: Cascade)
+
+  // Creator Reference (optional - for tracking who created this)
+  createdById   String?
+  createdBy     User?    @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // Customer Information
+  customerName    String
+  customerAddress String   @db.Text
+  customerTaxId   String?  // Optional
+  customerPhone   String?  // Optional
+
+  // Date
+  issueDate       DateTime @default(now())
+  dueDate         DateTime? // Payment due date (optional)
+
+  // Financial Calculations
+  subtotal        Float    @default(0) // Sum of all items
+  vatAmount       Float    @default(0) // 7% VAT (if applicable)
+  total           Float    @default(0) // Subtotal + VAT
+  hasVat          Boolean  @default(true) // VAT toggle
+
+  // Withholding Tax (หัก ณ ที่จ่าย)
+  hasWithholdingTax      Boolean @default(false) // Withholding tax toggle
+  withholdingTaxPercent  Float   @default(3) // Usually 3% in Thailand
+  withholdingTaxAmount   Float   @default(0) // Calculated amount
+  netTotal               Float   @default(0) // Total - Withholding Tax
+
+  // Additional Information
+  notes           String?  @db.Text
+  language        String   @default("th") // 'th' or 'en'
+
+  // Signature Information (optional)
+  signatureUrl    String?  @db.Text
+  signatureName   String?
+  signatureTitle  String?
+
+  // Status (optional, for future use)
+  status          String   @default("draft") // draft, sent, paid, overdue, cancelled
+
+  // Reference to Quotation (optional)
+  quotationId     String?
+
+  // Soft Delete (optional)
+  deletedAt       DateTime?
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  items           InvoiceItem[]
+
+  @@index([invoiceNumber])
+  @@index([companyId])
+  @@index([createdById])
+  @@index([customerName])
+  @@index([issueDate])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("invoices")
+}
+
+// Invoice Item Model
+// Stores individual line items in invoices
+// Supports hierarchical structure (main items and sub-items)
+model InvoiceItem {
+  id            String  @id @default(uuid())
+
+  // Invoice Reference
+  invoiceId     String
+  invoice       Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  // Item Details
+  description   String  @db.Text // Multi-line supported
+  quantity      Float   @default(1)
+  unit          String  // e.g., "ชิ้น", "เครื่อง", "บาท", "piece", "unit"
+  pricePerUnit  Float   @default(0)
+  amount        Float   @default(0) // quantity × pricePerUnit
+
+  // Ordering and Hierarchy
+  order         Int     @default(0) // For sorting items
+  parentItemId  String? // For sub-items (references another InvoiceItem)
+
+  // Self-referential relation for sub-items
+  parent        InvoiceItem?  @relation("InvoiceItemHierarchy", fields: [parentItemId], references: [id], onDelete: Cascade)
+  subItems      InvoiceItem[] @relation("InvoiceItemHierarchy")
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([parentItemId])
+  @@index([order])
+  @@map("invoice_items")
+}

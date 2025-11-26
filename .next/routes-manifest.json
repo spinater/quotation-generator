@@ -1,0 +1,216 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/invoices/[id]",
+      "regex": "^/api/invoices/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/invoices/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/quotations/[id]",
+      "regex": "^/api/quotations/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/quotations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/receipts/[id]",
+      "regex": "^/api/receipts/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/receipts/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/invoice/[id]",
+      "regex": "^/invoice/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/invoice/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/invoice/[id]/edit",
+      "regex": "^/invoice/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/invoice/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/quotation/[id]",
+      "regex": "^/quotation/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/quotation/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/quotation/[id]/edit",
+      "regex": "^/quotation/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/quotation/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/receipt/[id]",
+      "regex": "^/receipt/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/receipt/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/receipt/[id]/edit",
+      "regex": "^/receipt/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/receipt/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin/users/create",
+      "regex": "^/admin/users/create(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/users/create(?:/)?$"
+    },
+    {
+      "page": "/invoice",
+      "regex": "^/invoice(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/invoice(?:/)?$"
+    },
+    {
+      "page": "/invoice/new",
+      "regex": "^/invoice/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/invoice/new(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/quotation",
+      "regex": "^/quotation(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/quotation(?:/)?$"
+    },
+    {
+      "page": "/quotation/new",
+      "regex": "^/quotation/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/quotation/new(?:/)?$"
+    },
+    {
+      "page": "/receipt",
+      "regex": "^/receipt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/receipt(?:/)?$"
+    },
+    {
+      "page": "/receipt/new",
+      "regex": "^/receipt/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/receipt/new(?:/)?$"
+    },
+    {
+      "page": "/settings/companies",
+      "regex": "^/settings/companies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings/companies(?:/)?$"
+    },
+    {
+      "page": "/test",
+      "regex": "^/test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test(?:/)?$"
+    },
+    {
+      "page": "/test-fonts",
+      "regex": "^/test\\-fonts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test\\-fonts(?:/)?$"
+    },
+    {
+      "page": "/test-header-fix",
+      "regex": "^/test\\-header\\-fix(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test\\-header\\-fix(?:/)?$"
+    },
+    {
+      "page": "/test-pdfmake",
+      "regex": "^/test\\-pdfmake(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test\\-pdfmake(?:/)?$"
+    },
+    {
+      "page": "/test-thai-fix",
+      "regex": "^/test\\-thai\\-fix(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test\\-thai\\-fix(?:/)?$"
+    },
+    {
+      "page": "/test-thai-solutions",
+      "regex": "^/test\\-thai\\-solutions(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/test\\-thai\\-solutions(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

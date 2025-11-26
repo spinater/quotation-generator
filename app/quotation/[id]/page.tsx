@@ -1,0 +1,486 @@
+import React from "react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { format } from "date-fns";
+import { bahttext } from "@/lib/bahttext";
+import { QuotationDetailActions } from "@/components/QuotationDetailActions";
+
+// Force dynamic rendering to skip build-time database access
+export const dynamic = 'force-dynamic';
+
+export default async function QuotationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  // Await params in Next.js 15
+  const { id } = await params;
+
+  // Fetch quotation with all related data
+  const quotation = await prisma.quotation.findUnique({
+    where: { id },
+    include: {
+      company: true,
+      items: {
+        include: {
+          subItems: {
+            orderBy: { order: "asc" },
+          },
+        },
+        where: { parentItemId: null },
+        orderBy: { order: "asc" },
+      },
+    },
+  });
+
+  // If quotation not found or deleted, show 404
+  if (!quotation || quotation.deletedAt) {
+    notFound();
+  }
+
+  // Calculate item counts
+  const totalItems = quotation.items.reduce(
+    (count, item) => count + 1 + item.subItems.length,
+    0,
+  );
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Header Actions */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+          <div>
+            <Link
+              href="/quotation"
+              className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1 mb-2"
+            >
+              ← กลับไปรายการใบเสนอราคา
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900">
+              รายละเอียดใบเสนอราคา
+            </h1>
+            <p className="text-gray-600 mt-1">Quotation Details</p>
+          </div>
+
+          <QuotationDetailActions quotation={quotation} />
+        </div>
+
+        {/* Main Content */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          {/* Header Section */}
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">
+                  {quotation.language === "th" ? "ใบเสนอราคา" : "QUOTATION"}
+                </h2>
+                <div className="text-blue-100 space-y-1">
+                  <p className="text-lg font-semibold">
+                    {quotation.quotationNumber}
+                  </p>
+                  <p className="text-sm">
+                    {quotation.language === "th" ? "วันที่" : "Date"}:{" "}
+                    {format(new Date(quotation.issueDate), "dd/MM/yyyy")}
+                  </p>
+                  <p className="text-sm">
+                    {quotation.language === "th" ? "ใช้ได้ถึง" : "Valid Until"}:{" "}
+                    {format(new Date(quotation.validUntil), "dd/MM/yyyy")}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span
+                  className={`inline-block px-4 py-2 rounded-full text-sm font-medium ${
+                    quotation.status === "draft"
+                      ? "bg-white/20 text-white"
+                      : quotation.status === "sent"
+                        ? "bg-blue-100 text-blue-900"
+                        : quotation.status === "accepted"
+                          ? "bg-green-100 text-green-900"
+                          : quotation.status === "rejected"
+                            ? "bg-red-100 text-red-900"
+                            : quotation.status === "expired"
+                              ? "bg-yellow-100 text-yellow-900"
+                              : "bg-white/20 text-white"
+                  }`}
+                >
+                  {quotation.status.toUpperCase()}
+                </span>
+                <p className="text-sm mt-2 text-blue-100">
+                  {totalItems} {totalItems === 1 ? "item" : "items"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8">
+            {/* Company and Customer Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              {/* Company Info */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+                  {quotation.language === "th" ? "จาก / From" : "From"}
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <p className="font-bold text-gray-900 text-lg mb-2">
+                    {quotation.company.name}
+                  </p>
+                  {quotation.company.nameEn && (
+                    <p className="text-gray-700 mb-2">
+                      {quotation.company.nameEn}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-600 whitespace-pre-line mb-2">
+                    {quotation.company.address}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {quotation.language === "th"
+                      ? "เลขประจำตัวผู้เสียภาษี"
+                      : "Tax ID"}
+                    : {quotation.company.taxId}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {quotation.language === "th" ? "โทรศัพท์" : "Tel"}:{" "}
+                    {quotation.company.phone}
+                  </p>
+                  {quotation.company.email && (
+                    <p className="text-sm text-gray-600">
+                      Email: {quotation.company.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">
+                  {quotation.language === "th" ? "ถึง / To" : "To"}
+                </h3>
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="font-bold text-gray-900 text-lg mb-2">
+                    {quotation.customerName}
+                  </p>
+                  <p className="text-sm text-gray-600 whitespace-pre-line mb-2">
+                    {quotation.customerAddress}
+                  </p>
+                  {quotation.customerTaxId && (
+                    <p className="text-sm text-gray-600">
+                      {quotation.language === "th"
+                        ? "เลขประจำตัวผู้เสียภาษี"
+                        : "Tax ID"}
+                      : {quotation.customerTaxId}
+                    </p>
+                  )}
+                  {quotation.customerPhone && (
+                    <p className="text-sm text-gray-600">
+                      {quotation.language === "th" ? "โทรศัพท์" : "Tel"}:{" "}
+                      {quotation.customerPhone}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {quotation.language === "th"
+                  ? "รายการสินค้า/บริการ"
+                  : "Items / Services"}
+              </h3>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                {/* Table Header */}
+                <div className="bg-gray-50 border-b border-gray-200">
+                  <div className="grid grid-cols-12 gap-4 px-4 py-3 text-sm font-semibold text-gray-700">
+                    <div className="col-span-1 text-center">#</div>
+                    <div className="col-span-5">
+                      {quotation.language === "th" ? "รายการ" : "Description"}
+                    </div>
+                    <div className="col-span-1 text-center">
+                      {quotation.language === "th" ? "จำนวน" : "Qty"}
+                    </div>
+                    <div className="col-span-1 text-center">
+                      {quotation.language === "th" ? "หน่วย" : "Unit"}
+                    </div>
+                    <div className="col-span-2 text-right">
+                      {quotation.language === "th"
+                        ? "ราคา/หน่วย"
+                        : "Price/Unit"}
+                    </div>
+                    <div className="col-span-2 text-right">
+                      {quotation.language === "th" ? "จำนวนเงิน" : "Amount"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-gray-200">
+                  {quotation.items.map((item, index) => (
+                    <div key={item.id}>
+                      {/* Main Item */}
+                      <div className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-gray-50">
+                        <div className="col-span-1 text-center text-gray-600">
+                          {index + 1}
+                        </div>
+                        <div className="col-span-5">
+                          <div className="text-gray-900 font-medium">
+                            {item.description}
+                          </div>
+                        </div>
+                        <div className="col-span-1 text-center text-gray-900">
+                          {item.quantity.toLocaleString("th-TH")}
+                        </div>
+                        <div className="col-span-1 text-center text-gray-600">
+                          {item.unit}
+                        </div>
+                        <div className="col-span-2 text-right text-gray-900">
+                          {item.pricePerUnit.toLocaleString("th-TH", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </div>
+                        <div className="col-span-2 text-right text-gray-900 font-semibold">
+                          {item.amount.toLocaleString("th-TH", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Sub Items */}
+                      {item.subItems.map((subItem) => (
+                        <div
+                          key={subItem.id}
+                          className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 border-t border-gray-100"
+                        >
+                          <div className="col-span-1"></div>
+                          <div className="col-span-5 pl-6">
+                            <div className="text-gray-700 text-sm flex items-start gap-2">
+                              <span className="text-gray-400">└</span>
+                              <span>{subItem.description}</span>
+                            </div>
+                          </div>
+                          <div className="col-span-1 text-center text-gray-700 text-sm">
+                            {subItem.quantity.toLocaleString("th-TH")}
+                          </div>
+                          <div className="col-span-1 text-center text-gray-600 text-sm">
+                            {subItem.unit}
+                          </div>
+                          <div className="col-span-2 text-right text-gray-700 text-sm">
+                            {subItem.pricePerUnit.toLocaleString("th-TH", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </div>
+                          <div className="col-span-2 text-right text-gray-700 text-sm">
+                            {subItem.amount.toLocaleString("th-TH", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Totals Section */}
+            <div className="flex justify-end mb-8">
+              <div className="w-full md:w-1/2 lg:w-1/3">
+                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                  <div className="space-y-3">
+                    {/* Subtotal */}
+                    <div className="flex justify-between text-gray-700">
+                      <span>
+                        {quotation.language === "th" ? "ยอดรวม" : "Subtotal"}:
+                      </span>
+                      <span className="font-semibold">
+                        ฿
+                        {quotation.subtotal.toLocaleString("th-TH", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+
+                    {/* VAT */}
+                    {quotation.hasVat && (
+                      <div className="flex justify-between text-gray-700">
+                        <span>
+                          {quotation.language === "th"
+                            ? "ภาษีมูลค่าเพิ่ม 7%"
+                            : "VAT 7%"}
+                          :
+                        </span>
+                        <span className="font-semibold">
+                          ฿
+                          {quotation.vatAmount.toLocaleString("th-TH", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Total */}
+                    <div className="flex justify-between text-lg font-bold text-gray-900 pt-3 border-t-2 border-gray-300">
+                      <span>
+                        {quotation.language === "th"
+                          ? "รวมทั้งสิ้น"
+                          : "Grand Total"}
+                        :
+                      </span>
+                      <span>
+                        ฿
+                        {quotation.total.toLocaleString("th-TH", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Thai Bahttext */}
+                    <div className="pt-3 border-t border-gray-200">
+                      <p className="text-sm text-gray-600">
+                        {quotation.language === "th" ? "ตัวอักษร" : "In Words"}:
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 mt-1">
+                        {bahttext(quotation.total)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            {quotation.notes && (
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  {quotation.language === "th" ? "หมายเหตุ" : "Notes"}
+                </h3>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-gray-700 whitespace-pre-line">
+                    {quotation.notes}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Bank Details */}
+            {quotation.company.bankName && (
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  {quotation.language === "th"
+                    ? "ข้อมูลการชำระเงิน"
+                    : "Payment Information"}
+                </h3>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">
+                        {quotation.language === "th" ? "ธนาคาร" : "Bank"}:
+                      </p>
+                      <p className="font-semibold text-gray-900">
+                        {quotation.company.bankName}
+                      </p>
+                    </div>
+                    {quotation.company.bankAccountNumber && (
+                      <div>
+                        <p className="text-gray-600">
+                          {quotation.language === "th"
+                            ? "เลขที่บัญชี"
+                            : "Account No"}
+                          :
+                        </p>
+                        <p className="font-semibold text-gray-900">
+                          {quotation.company.bankAccountNumber}
+                        </p>
+                      </div>
+                    )}
+                    {quotation.company.bankAccountName && (
+                      <div>
+                        <p className="text-gray-600">
+                          {quotation.language === "th"
+                            ? "ชื่อบัญชี"
+                            : "Account Name"}
+                          :
+                        </p>
+                        <p className="font-semibold text-gray-900">
+                          {quotation.company.bankAccountName}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Signature Section */}
+            {quotation.signatureName && (
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                  {quotation.language === "th" ? "ลงชื่อ" : "Signature"}
+                </h3>
+                <div className="border-t-2 border-gray-300 pt-8">
+                  {quotation.signatureUrl && (
+                    <div className="mb-4">
+                      <img
+                        src={quotation.signatureUrl}
+                        alt="Signature"
+                        className="h-16"
+                      />
+                    </div>
+                  )}
+                  <p className="font-semibold text-gray-900">
+                    {quotation.signatureName}
+                  </p>
+                  {quotation.signatureTitle && (
+                    <p className="text-gray-600 text-sm">
+                      {quotation.signatureTitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Metadata */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                <div>
+                  <p className="font-medium text-gray-700">Created:</p>
+                  <p>
+                    {format(new Date(quotation.createdAt), "dd/MM/yyyy HH:mm")}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Updated:</p>
+                  <p>
+                    {format(new Date(quotation.updatedAt), "dd/MM/yyyy HH:mm")}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Language:</p>
+                  <p className="uppercase">{quotation.language}</p>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-700">Document ID:</p>
+                  <p className="text-xs break-all">{quotation.id}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="mt-8 flex justify-between items-center">
+          <Link
+            href="/quotation"
+            className="text-blue-600 hover:text-blue-800 flex items-center gap-2"
+          >
+            ← Back to Quotations List
+          </Link>
+          <div className="text-sm text-gray-500">
+            💡 Tip: Download PDF to share with customers
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

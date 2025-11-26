@@ -1,0 +1,886 @@
+"use client";
+
+import type { TDocumentDefinitions, Content } from "pdfmake/interfaces";
+import { bahtTextWithSymbol } from "@/lib/bahttext";
+
+// Translation helper
+const t = (key: string, lang: string = "th"): string => {
+  const translations: Record<string, Record<string, string>> = {
+    // Common
+    taxId: { th: "เลขประจำตัวผู้เสียภาษี", en: "Tax ID" },
+    address: { th: "ที่อยู่", en: "Address" },
+    phone: { th: "โทรศัพท์", en: "Phone" },
+    customer: { th: "ลูกค้า", en: "Customer" },
+    no: { th: "ลำดับ", en: "No." },
+    description: { th: "รายการ", en: "Description" },
+    quantity: { th: "จำนวน", en: "Qty" },
+    unit: { th: "หน่วย", en: "Unit" },
+    pricePerUnit: { th: "ราคา/หน่วย", en: "Price/Unit" },
+    amount: { th: "จำนวนเงิน", en: "Amount" },
+    subtotal: { th: "ยอดรวม", en: "Subtotal" },
+    vat: { th: "ภาษีมูลค่าเพิ่ม 7%", en: "VAT 7%" },
+    total: { th: "รวมทั้งสิ้น", en: "Total" },
+    totalInWords: { th: "ตัวอักษร", en: "In Words" },
+    notes: { th: "หมายเหตุ", en: "Notes" },
+    bankDetails: { th: "รายละเอียดบัญชีธนาคาร", en: "Bank Details" },
+    bankName: { th: "ธนาคาร", en: "Bank" },
+    accountNumber: { th: "เลขที่บัญชี", en: "Account Number" },
+    accountName: { th: "ชื่อบัญชี", en: "Account Name" },
+    authorizedSignature: {
+      th: "ลายเซ็นผู้มีอำนาจ",
+      en: "Authorized Signature",
+    },
+    customerSignature: { th: "ลายเซ็นลูกค้า", en: "Customer Signature" },
+
+    // Quotation
+    quotation: { th: "ใบเสนอราคา", en: "QUOTATION" },
+    quotationNo: { th: "เลขที่", en: "Quotation No." },
+    issueDate: { th: "วันที่", en: "Issue Date" },
+    validUntil: { th: "ใช้ได้ถึง", en: "Valid Until" },
+
+    // Invoice
+    invoice: { th: "ใบแจ้งหนี้", en: "INVOICE" },
+    invoiceNo: { th: "เลขที่", en: "Invoice No." },
+    dueDate: { th: "ครบกำหนด", en: "Due Date" },
+    netTotal: { th: "ยอดสุทธิ", en: "Net Total" },
+
+    // Receipt
+    receipt: { th: "ใบเสร็จรับเงิน", en: "RECEIPT" },
+    receiptNo: { th: "เลขที่", en: "Receipt No." },
+    paymentMethod: { th: "วิธีชำระเงิน", en: "Payment Method" },
+    receivedFrom: { th: "ได้รับเงินจาก", en: "Received From" },
+  };
+  return translations[key]?.[lang] || key;
+};
+
+// Format date
+const formatDate = (date: Date | string, lang: string = "th"): string => {
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (lang === "en") {
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  return d.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+// Format currency
+const formatCurrency = (amount: number): string => {
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+// Common styles
+const commonStyles = {
+  header: {
+    fontSize: 16,
+    bold: true,
+    margin: [0, 0, 0, 5] as [number, number, number, number],
+  },
+  subheader: {
+    fontSize: 12,
+    bold: true,
+    margin: [0, 10, 0, 5] as [number, number, number, number],
+  },
+  tableHeader: {
+    bold: true,
+    fontSize: 10,
+    fillColor: "#e5e7eb",
+    alignment: "center" as const,
+  },
+  tableCell: {
+    fontSize: 9,
+    margin: [3, 3, 3, 3] as [number, number, number, number],
+  },
+  small: {
+    fontSize: 8,
+  },
+  notesTitle: {
+    fontSize: 10,
+    bold: true,
+    margin: [0, 0, 0, 5] as [number, number, number, number],
+  },
+  notesText: {
+    fontSize: 9,
+  },
+  signatureBox: {
+    fontSize: 9,
+    alignment: "center" as const,
+    margin: [0, 30, 0, 5] as [number, number, number, number],
+  },
+};
+
+// Build header section with dates (for Invoice and Receipt)
+const buildHeader = (
+  company: any,
+  documentType: string,
+  documentNumber: string,
+  lang: string,
+  dates?: {
+    issueDate?: string;
+    validUntil?: string;
+    dueDate?: string;
+    paymentMethod?: string;
+  },
+) => {
+  const rightStack: any[] = [
+    {
+      text: documentType,
+      style: "header",
+      alignment: "right",
+    },
+    {
+      text: `${t(
+        documentType === t("quotation", lang)
+          ? "quotationNo"
+          : documentType === t("invoice", lang)
+            ? "invoiceNo"
+            : "receiptNo",
+        lang,
+      )}: ${documentNumber}`,
+      fontSize: 10,
+      alignment: "right",
+      margin: [0, 0, 0, 3] as [number, number, number, number],
+    },
+  ];
+
+  // Add dates to header if provided
+  if (dates?.issueDate) {
+    rightStack.push({
+      text: `${t("issueDate", lang)}: ${dates.issueDate}`,
+      fontSize: 9,
+      alignment: "right",
+      margin: [0, 0, 0, 2] as [number, number, number, number],
+    });
+  }
+
+  if (dates?.validUntil) {
+    rightStack.push({
+      text: `${t("validUntil", lang)}: ${dates.validUntil}`,
+      fontSize: 9,
+      alignment: "right",
+      margin: [0, 0, 0, 2] as [number, number, number, number],
+    });
+  }
+
+  if (dates?.dueDate) {
+    rightStack.push({
+      text: `${t("dueDate", lang)}: ${dates.dueDate}`,
+      fontSize: 9,
+      alignment: "right",
+      margin: [0, 0, 0, 2] as [number, number, number, number],
+    });
+  }
+
+  if (dates?.paymentMethod) {
+    rightStack.push({
+      text: `${t("paymentMethod", lang)}: ${dates.paymentMethod}`,
+      fontSize: 9,
+      alignment: "right",
+      margin: [0, 0, 0, 2] as [number, number, number, number],
+    });
+  }
+
+  return {
+    columns: [
+      {
+        width: "*",
+        stack: [
+          {
+            text: lang === "th" ? company.name : company.nameEn || company.name,
+            style: "header",
+          },
+          {
+            text: `${t("taxId", lang)}: ${company.taxId}`,
+            fontSize: 9,
+            margin: [0, 0, 0, 2] as [number, number, number, number],
+          },
+          {
+            text: `${t("address", lang)}: ${company.address}`,
+            fontSize: 9,
+            margin: [0, 0, 0, 2] as [number, number, number, number],
+          },
+          {
+            text: `${t("phone", lang)}: ${company.phone}`,
+            fontSize: 9,
+          },
+        ],
+      },
+      {
+        width: 180,
+        stack: rightStack,
+      },
+    ],
+    margin: [0, 0, 0, 15] as [number, number, number, number],
+  };
+};
+
+// Build customer section
+const buildCustomer = (data: any, lang: string) => {
+  return {
+    stack: [
+      {
+        text: t("customer", lang),
+        style: "subheader",
+      },
+      {
+        text: data.customerName,
+        fontSize: 10,
+        bold: true,
+      },
+      data.customerAddress
+        ? {
+            text: data.customerAddress,
+            fontSize: 9,
+          }
+        : null,
+      data.customerTaxId
+        ? {
+            text: `${t("taxId", lang)}: ${data.customerTaxId}`,
+            fontSize: 9,
+          }
+        : null,
+      data.customerPhone
+        ? {
+            text: `${t("phone", lang)}: ${data.customerPhone}`,
+            fontSize: 9,
+          }
+        : null,
+    ].filter((item): item is any => item !== null),
+    margin: [0, 0, 0, 20] as [number, number, number, number],
+  };
+};
+
+// Build items table
+const buildItemsTable = (items: any[], lang: string) => {
+  const tableBody = [
+    [
+      {
+        text: t("no", lang),
+        style: "tableHeader",
+        alignment: "center" as const,
+      },
+      { text: t("description", lang), style: "tableHeader" },
+      {
+        text: t("quantity", lang),
+        style: "tableHeader",
+        alignment: "center" as const,
+      },
+      {
+        text: t("unit", lang),
+        style: "tableHeader",
+        alignment: "center" as const,
+      },
+      {
+        text: t("pricePerUnit", lang),
+        style: "tableHeader",
+        alignment: "right" as const,
+      },
+      {
+        text: t("amount", lang),
+        style: "tableHeader",
+        alignment: "right" as const,
+      },
+    ],
+  ];
+
+  items.forEach((item, index) => {
+    tableBody.push([
+      {
+        text: (index + 1).toString(),
+        style: "tableCell",
+        alignment: "center" as const,
+      },
+      { text: item.description, style: "tableCell" },
+      {
+        text: item.quantity.toString(),
+        style: "tableCell",
+        alignment: "center" as const,
+      },
+      { text: item.unit, style: "tableCell", alignment: "center" as const },
+      {
+        text: formatCurrency(item.pricePerUnit),
+        style: "tableCell",
+        alignment: "right" as const,
+      },
+      {
+        text: formatCurrency(item.amount),
+        style: "tableCell",
+        alignment: "right" as const,
+      },
+    ]);
+
+    // Add sub-items if any
+    if (item.subItems && item.subItems.length > 0) {
+      item.subItems.forEach((subItem: any) => {
+        tableBody.push([
+          { text: "", style: "tableCell" },
+          {
+            text: `  - ${subItem.description}`,
+            style: "tableCell",
+          },
+          {
+            text: subItem.quantity.toString(),
+            style: "tableCell",
+            alignment: "center" as const,
+          },
+          {
+            text: subItem.unit,
+            style: "tableCell",
+            alignment: "center" as const,
+          },
+          {
+            text: formatCurrency(subItem.pricePerUnit),
+            style: "tableCell",
+            alignment: "right" as const,
+          },
+          {
+            text: formatCurrency(subItem.amount),
+            style: "tableCell",
+            alignment: "right" as const,
+          },
+        ]);
+      });
+    }
+  });
+
+  return {
+    table: {
+      headerRows: 1,
+      widths: [30, "*", 50, 50, 70, 70],
+      body: tableBody,
+    },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0.5,
+      hLineColor: () => "#e5e7eb",
+      vLineColor: () => "#e5e7eb",
+    },
+    margin: [0, 0, 0, 10] as [number, number, number, number],
+  };
+};
+
+// Build totals section
+const buildTotals = (data: any, lang: string) => {
+  // Build stack array dynamically based on flags
+  const stackItems: any[] = [];
+
+  // 1. Subtotal (always show)
+  stackItems.push({
+    columns: [
+      { text: t("subtotal", lang), fontSize: 10 },
+      {
+        text: formatCurrency(data.subtotal),
+        fontSize: 10,
+        alignment: "right" as const,
+      },
+    ],
+    margin: [5, 5, 5, 5] as [number, number, number, number],
+  });
+
+  // 2. VAT (only if hasVat is true)
+  if (data.hasVat) {
+    stackItems.push({
+      columns: [
+        { text: t("vat", lang), fontSize: 10 },
+        {
+          text: formatCurrency(data.vatAmount),
+          fontSize: 10,
+          alignment: "right" as const,
+        },
+      ],
+      margin: [5, 0, 5, 5] as [number, number, number, number],
+    });
+  }
+
+  // 3. Total (if no withholding tax, this is the final total)
+  if (!data.hasWithholdingTax) {
+    stackItems.push({
+      columns: [
+        { text: t("total", lang), fontSize: 11, bold: true },
+        {
+          text: formatCurrency(data.total),
+          fontSize: 11,
+          bold: true,
+          alignment: "right" as const,
+        },
+      ],
+      margin: [5, 5, 5, 5] as [number, number, number, number],
+    });
+  }
+
+  // 4. Withholding Tax (only if hasWithholdingTax is true)
+  if (data.hasWithholdingTax) {
+    // Show total first (before deducting)
+    stackItems.push({
+      columns: [
+        { text: t("total", lang), fontSize: 10 },
+        {
+          text: formatCurrency(
+            data.total || data.subtotal + (data.vatAmount || 0),
+          ),
+          fontSize: 10,
+          alignment: "right" as const,
+        },
+      ],
+      margin: [5, 0, 5, 5] as [number, number, number, number],
+    });
+
+    // Show withholding tax deduction
+    const withholdingPercent = data.withholdingTaxPercent || 3;
+    const withholdingLabel =
+      lang === "th"
+        ? `หัก ณ ที่จ่าย ${withholdingPercent}%`
+        : `Withholding Tax ${withholdingPercent}%`;
+
+    stackItems.push({
+      columns: [
+        { text: withholdingLabel, fontSize: 10, color: "#c2410c" },
+        {
+          text: `-${formatCurrency(data.withholdingTaxAmount)}`,
+          fontSize: 10,
+          color: "#c2410c",
+          alignment: "right" as const,
+        },
+      ],
+      margin: [5, 0, 5, 5] as [number, number, number, number],
+    });
+
+    // Show net total (final amount after withholding tax)
+    const netTotalLabel = lang === "th" ? "รวมทั้งสิ้น" : "Net Total";
+    stackItems.push({
+      columns: [
+        { text: netTotalLabel, fontSize: 11, bold: true },
+        {
+          text: formatCurrency(data.netTotal),
+          fontSize: 11,
+          bold: true,
+          alignment: "right" as const,
+        },
+      ],
+      margin: [5, 5, 5, 5] as [number, number, number, number],
+    });
+  }
+
+  // 5. Total in words (use netTotal if withholding tax, otherwise total)
+  const finalAmount = data.hasWithholdingTax ? data.netTotal : data.total;
+  stackItems.push({
+    text: `${t("totalInWords", lang)}: ${bahtTextWithSymbol(finalAmount)}`,
+    fontSize: 9,
+    italics: true,
+    margin: [5, 5, 5, 5] as [number, number, number, number],
+  });
+
+  return {
+    columns: [
+      { width: "*", text: "" },
+      {
+        width: 220,
+        table: {
+          widths: ["*"],
+          body: [[{ stack: stackItems, border: [true, true, true, true] }]],
+        },
+        layout: {
+          hLineWidth: () => 1,
+          vLineWidth: () => 1,
+          hLineColor: () => "#d1d5db",
+          vLineColor: () => "#d1d5db",
+        },
+      },
+    ],
+    margin: [0, 10, 0, 20] as [number, number, number, number],
+  };
+};
+
+// Build signature section
+const buildSignatures = (lang: string) => {
+  return {
+    columns: [
+      {
+        width: "*",
+        stack: [
+          {
+            text: "",
+            margin: [0, 0, 0, 40] as [number, number, number, number],
+          },
+          {
+            text: "_________________________",
+            alignment: "center",
+            margin: [0, 0, 0, 5] as [number, number, number, number],
+          },
+          { text: t("authorizedSignature", lang), style: "signatureBox" },
+        ],
+      },
+      {
+        width: "*",
+        stack: [
+          {
+            text: "",
+            margin: [0, 0, 0, 40] as [number, number, number, number],
+          },
+          {
+            text: "_________________________",
+            alignment: "center",
+            margin: [0, 0, 0, 5] as [number, number, number, number],
+          },
+          { text: t("customerSignature", lang), style: "signatureBox" },
+        ],
+      },
+    ],
+    margin: [0, 20, 0, 0] as [number, number, number, number],
+  };
+};
+
+// Build footer
+const buildFooter = (lang: string) => {
+  return (currentPage: number, pageCount: number) => {
+    return {
+      text: `${lang === "th" ? "หน้า" : "Page"} ${currentPage} / ${pageCount}`,
+      alignment: "center" as const,
+      fontSize: 8,
+      margin: [0, 10, 0, 0] as [number, number, number, number],
+    };
+  };
+};
+
+// Build bank details
+const buildBankDetails = (company: any, lang: string) => {
+  if (!company.bankName || !company.bankAccountNumber) {
+    return null;
+  }
+
+  return {
+    stack: [
+      {
+        text: t("bankDetails", lang),
+        style: "subheader",
+      },
+      {
+        text: `${t("bankName", lang)}: ${company.bankName}`,
+        fontSize: 9,
+      },
+      {
+        text: `${t("accountNumber", lang)}: ${company.bankAccountNumber}`,
+        fontSize: 9,
+      },
+      company.bankAccountName
+        ? {
+            text: `${t("accountName", lang)}: ${company.bankAccountName}`,
+            fontSize: 9,
+          }
+        : null,
+    ].filter((item): item is any => item !== null),
+    margin: [0, 0, 0, 10] as [number, number, number, number],
+  };
+};
+
+// Generate Quotation PDF
+export function generateQuotationPDF(quotation: any): TDocumentDefinitions {
+  const lang = quotation.language || "th";
+
+  const content = (
+    [
+      buildHeader(
+        quotation.company,
+        t("quotation", lang),
+        quotation.quotationNumber,
+        lang,
+        {
+          issueDate: formatDate(quotation.issueDate, lang),
+          validUntil: formatDate(quotation.validUntil, lang),
+        },
+      ),
+      buildCustomer(quotation, lang),
+      buildItemsTable(quotation.items, lang),
+      buildTotals(quotation, lang),
+      buildBankDetails(quotation.company, lang),
+      // Notes
+      quotation.notes
+        ? {
+            stack: [
+              { text: t("notes", lang), style: "notesTitle" },
+              { text: quotation.notes, style: "notesText" },
+            ],
+            fillColor: "#fffbf0",
+            margin: [5, 5, 5, 5] as [number, number, number, number],
+          }
+        : null,
+      buildSignatures(lang),
+    ] as (Content | null)[]
+  ).filter((item): item is Content => item !== null);
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 80] as [number, number, number, number],
+    defaultStyle: {
+      font: "Sarabun",
+      fontSize: 10,
+    },
+    content,
+    footer: buildFooter(lang),
+    styles: commonStyles,
+  };
+}
+
+// Generate Invoice PDF
+export function generateInvoicePDF(invoice: any): TDocumentDefinitions {
+  const lang = invoice.language || "th";
+
+  const content = (
+    [
+      buildHeader(
+        invoice.company,
+        t("invoice", lang),
+        invoice.invoiceNumber,
+        lang,
+        {
+          issueDate: formatDate(invoice.issueDate, lang),
+          dueDate: formatDate(invoice.dueDate, lang),
+        },
+      ),
+      buildCustomer(invoice, lang),
+      buildItemsTable(invoice.items, lang),
+      buildTotals(invoice, lang),
+      buildBankDetails(invoice.company, lang),
+      // Notes
+      invoice.notes
+        ? {
+            stack: [
+              { text: t("notes", lang), style: "notesTitle" },
+              { text: invoice.notes, style: "notesText" },
+            ],
+            fillColor: "#fffbf0",
+            margin: [5, 5, 5, 5] as [number, number, number, number],
+          }
+        : null,
+      buildSignatures(lang),
+    ] as (Content | null)[]
+  ).filter((item): item is Content => item !== null);
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 80] as [number, number, number, number],
+    defaultStyle: {
+      font: "Sarabun",
+      fontSize: 10,
+    },
+    content,
+    footer: buildFooter(lang),
+    styles: commonStyles,
+  };
+}
+
+// Generate Receipt PDF
+export function generateReceiptPDF(receipt: any): TDocumentDefinitions {
+  const lang = receipt.language || "th";
+
+  const content = (
+    [
+      buildHeader(
+        receipt.company,
+        t("receipt", lang),
+        receipt.receiptNumber,
+        lang,
+        {
+          issueDate: formatDate(receipt.issueDate, lang),
+          paymentMethod: receipt.paymentMethod,
+        },
+      ),
+      buildCustomer(receipt, lang),
+      buildItemsTable(receipt.items, lang),
+      buildTotals(receipt, lang),
+      buildBankDetails(receipt.company, lang),
+      // Notes
+      receipt.notes
+        ? {
+            stack: [
+              { text: t("notes", lang), style: "notesTitle" },
+              { text: receipt.notes, style: "notesText" },
+            ],
+            fillColor: "#fffbf0",
+            margin: [5, 5, 5, 5] as [number, number, number, number],
+          }
+        : null,
+      buildSignatures(lang),
+    ] as (Content | null)[]
+  ).filter((item): item is Content => item !== null);
+
+  return {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 80] as [number, number, number, number],
+    defaultStyle: {
+      font: "Sarabun",
+      fontSize: 10,
+    },
+    content,
+    footer: buildFooter(lang),
+    styles: commonStyles,
+  };
+}
+
+// Store initialization state
+let pdfMakeInstance: any = null;
+let customVfs: any = null;
+let customFonts: any = null;
+let fontsLoaded = false;
+
+export async function initPDFMake() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  // Return existing instance if already initialized
+  if (pdfMakeInstance && fontsLoaded && customVfs && customFonts) {
+    console.log("✅ PDFMake already initialized, returning cached instance");
+    return { pdfMake: pdfMakeInstance, vfs: customVfs, fonts: customFonts };
+  }
+
+  console.log("🔄 Initializing PDFMake with Thai fonts...");
+
+  const pdfMake = await import("pdfmake/build/pdfmake");
+  const pdfFonts = await import("pdfmake/build/vfs_fonts");
+
+  // Get the pdfMake object that has createPdf
+  const pdfMakeObj = (pdfMake as any).default || pdfMake;
+
+  // Get the default VFS from pdfFonts
+  const defaultVfs =
+    (pdfFonts as any).pdfMake?.vfs || (pdfFonts as any).vfs || {};
+
+  // Load Thai fonts from public directory
+  try {
+    console.log("📥 Loading fonts from /fonts/ directory...");
+
+    const [sarabunRegularRes, sarabunBoldRes, notoSansThaiRes] =
+      await Promise.all([
+        fetch("/fonts/Sarabun-Regular.ttf"),
+        fetch("/fonts/Sarabun-Bold.ttf"),
+        fetch("/fonts/NotoSansThai.ttf"),
+      ]);
+
+    // Check if all fonts loaded successfully
+    if (!sarabunRegularRes.ok || !sarabunBoldRes.ok || !notoSansThaiRes.ok) {
+      throw new Error(`Failed to fetch fonts:
+        Sarabun-Regular: ${sarabunRegularRes.status},
+        Sarabun-Bold: ${sarabunBoldRes.status},
+        NotoSansThai: ${notoSansThaiRes.status}`);
+    }
+
+    const [sarabunRegular, sarabunBold, notoSansThai] = await Promise.all([
+      sarabunRegularRes.arrayBuffer(),
+      sarabunBoldRes.arrayBuffer(),
+      notoSansThaiRes.arrayBuffer(),
+    ]);
+
+    console.log("✅ Fonts loaded successfully:", {
+      sarabunRegular: sarabunRegular.byteLength,
+      sarabunBold: sarabunBold.byteLength,
+      notoSansThai: notoSansThai.byteLength,
+    });
+
+    // Convert ArrayBuffer to base64
+    const toBase64 = (buffer: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    };
+
+    console.log("🔄 Converting fonts to base64...");
+    const sarabunRegularBase64 = toBase64(sarabunRegular);
+    const sarabunBoldBase64 = toBase64(sarabunBold);
+    const notoSansThaiBase64 = toBase64(notoSansThai);
+
+    console.log("✅ Base64 conversion complete");
+
+    // Create new VFS with Thai fonts added to default fonts
+    const vfsWithThaifonts = {
+      ...defaultVfs,
+      "Sarabun-Regular.ttf": sarabunRegularBase64,
+      "Sarabun-Bold.ttf": sarabunBoldBase64,
+      "NotoSansThai.ttf": notoSansThaiBase64,
+    };
+
+    console.log("📝 VFS created with Thai fonts");
+
+    // Configure fonts
+    const fontConfig = {
+      Sarabun: {
+        normal: "Sarabun-Regular.ttf",
+        bold: "Sarabun-Bold.ttf",
+        italics: "Sarabun-Regular.ttf",
+        bolditalics: "Sarabun-Bold.ttf",
+      },
+      NotoSansThai: {
+        normal: "NotoSansThai.ttf",
+        bold: "NotoSansThai.ttf",
+        italics: "NotoSansThai.ttf",
+        bolditalics: "NotoSansThai.ttf",
+      },
+      // Keep Roboto as fallback
+      Roboto: {
+        normal: "Roboto-Regular.ttf",
+        bold: "Roboto-Medium.ttf",
+        italics: "Roboto-Italic.ttf",
+        bolditalics: "Roboto-MediumItalic.ttf",
+      },
+    };
+
+    // Verify fonts are in VFS
+    console.log("🔍 Verifying VFS contains fonts:", {
+      hasSarabunRegular: !!vfsWithThaifonts["Sarabun-Regular.ttf"],
+      hasSarabunBold: !!vfsWithThaifonts["Sarabun-Bold.ttf"],
+      hasNotoSansThai: !!vfsWithThaifonts["NotoSansThai.ttf"],
+    });
+    console.log("🔍 Font families available:", Object.keys(fontConfig));
+    console.log(
+      "🔍 VFS object keys count:",
+      Object.keys(vfsWithThaifonts).length,
+    );
+
+    // Verify fonts are in VFS before declaring success
+    if (!vfsWithThaifonts["Sarabun-Bold.ttf"]) {
+      throw new Error(
+        "Font verification failed: Sarabun-Bold.ttf not found in VFS after configuration",
+      );
+    }
+
+    // Store for reuse
+    customVfs = vfsWithThaifonts;
+    customFonts = fontConfig;
+    fontsLoaded = true;
+    pdfMakeInstance = pdfMakeObj;
+
+    console.log("✅ PDFMake initialization complete!");
+  } catch (error) {
+    console.error("❌ Failed to load Thai fonts:", error);
+    // Fallback to default vfs and fonts if font loading fails
+    const fallbackFonts = {
+      Roboto: {
+        normal: "Roboto-Regular.ttf",
+        bold: "Roboto-Medium.ttf",
+        italics: "Roboto-Italic.ttf",
+        bolditalics: "Roboto-MediumItalic.ttf",
+      },
+    };
+
+    customFonts = fallbackFonts;
+    customVfs = defaultVfs;
+    fontsLoaded = true;
+
+    console.warn("⚠️ Using default fonts as fallback");
+    pdfMakeInstance = pdfMakeObj;
+  }
+
+  return { pdfMake: pdfMakeInstance, vfs: customVfs, fonts: customFonts };
+}
